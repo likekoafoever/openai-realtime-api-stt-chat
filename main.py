@@ -18,10 +18,12 @@ REALTIME_API_URL = (
 )
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
 
-
+# グローバル変数としてWebSocketを保持
 global_ws: websocket.WebSocketApp | None = None
-global_loop: asyncio.AbstractEventLoop | None = None
-ws_connection_established = asyncio.Event()
+
+SYSTEM_PROMPT = f"""
+あなたは日本語でのみ会話してください。
+"""
 
 
 def audio_callback(
@@ -30,23 +32,13 @@ def audio_callback(
     time: Any,
     status: sd.CallbackFlags,
 ) -> None:
-    """マイク音声をリアルタイムで WebSocket に送信"""
     # 無音なら送信しない（必要に応じてしきい値を調整）
     amplitude = np.abs(indata).mean()
     if amplitude < 10:
         return
 
-    # 音声データを Base64 エンコード
+    # 音声データをBase64エンコードし、サーバーに送信
     audio_chunk = base64.b64encode(indata.tobytes()).decode("utf-8")
-
-    # WebSocket に音声データを送信（非同期で実行）
-    if global_loop is not None:
-        asyncio.run_coroutine_threadsafe(send_audio(audio_chunk), global_loop)
-
-
-async def send_audio(audio_chunk: str) -> None:
-    """音声データを WebSocket に送信"""
-    await ws_connection_established.wait()  # WebSocket 接続が確立するまで待機
     if global_ws and global_ws.sock and global_ws.sock.connected:
         payload = json.dumps(
             {"type": "input_audio_buffer.append", "audio": audio_chunk}
@@ -55,30 +47,30 @@ async def send_audio(audio_chunk: str) -> None:
 
 
 def on_open(ws: websocket.WebSocket) -> None:
-    """WebSocket 接続時の処理"""
+    # WSを介してクライアントからサーバーへイベントをsession.updateのイベントを送信する
+    # サーバーのデフォルト設定からこちらの希望する設定に変更することが可能
     init_payload = json.dumps(
         {
             "type": "session.update",
             "session": {
-                "input_audio_format": "pcm16",
-                "instructions": "あなたは日本語でのみ会話してください。",
+                "instructions": SYSTEM_PROMPT,
             },
         }
     )
     ws.send(init_payload)
 
-    async def async_set_event() -> None:
-        """接続成功イベントを非同期でセット"""
-        ws_connection_established.set()
-
-    if global_loop is not None:
-        asyncio.run_coroutine_threadsafe(async_set_event(), global_loop)
-
 
 def on_message(ws: websocket.WebSocket, message: str) -> None:
-    """API からの文字起こし結果を受信"""
     try:
         response = json.loads(message)
+        if "type" in response and response["type"] == "session.created":
+            # WSを介してセッションを開始した時にサーバー側で送信されるイベント
+            # デフォルトの設定等が入っている
+            print("✅ セッションが作成されました")
+            print(f"✅ セッション開始ログ: {response}")
+        if "type" in response and response["type"] == "session.updated":
+            print("✅ セッションが更新されました")
+            print(f"✅ セッション更新ログ: {response}")
         if "type" in response and response["type"] == "response.audio_transcript.delta":
             if "delta" in response:
                 sys.stdout.write(response["delta"])
@@ -97,7 +89,6 @@ def on_error(ws: websocket.WebSocket, error: str) -> None:
 
 
 def run_ws() -> None:
-    """WebSocket を実行（別スレッド）"""
     global global_ws
     headers = [f"Authorization: Bearer {OPENAI_API_KEY}", "OpenAI-Beta: realtime=v1"]
 
@@ -112,16 +103,9 @@ def run_ws() -> None:
 
 
 async def main() -> None:
-    global global_loop
-    global_loop = asyncio.get_running_loop()  # メインスレッドのイベントループを取得
-
-    # WebSocket を別スレッドで実行
+    # WebSocketを別スレッドで実行
     ws_thread = threading.Thread(target=run_ws, daemon=True)
     ws_thread.start()
-
-    # WebSocket の接続が完了するまで待機
-    await ws_connection_established.wait()
-    print("✅ WebSocket 接続完了")
 
     # マイクからの音声入力を開始
     with sd.InputStream(

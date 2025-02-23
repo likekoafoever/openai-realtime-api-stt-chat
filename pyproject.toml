@@ -14,7 +14,8 @@ dependencies = [
     "numpy (>=2.2.3,<3.0.0)",
     "websocket-client (>=1.8.0,<2.0.0)",
     "python-dotenv (>=1.0.1,<2.0.0)",
-    "websockets (>=15.0,<16.0)"
+    "websockets (>=15.0,<16.0)",
+    "soundfile (>=0.13.1,<0.14.0)"
 ]
 
 

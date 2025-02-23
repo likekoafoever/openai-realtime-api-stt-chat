@@ -72,14 +72,12 @@ def on_message(ws: websocket.WebSocket, message: str) -> None:
             print("✅ セッションが更新されました")
             print(f"✅ セッション更新ログ: {response}")
         if "type" in response and response["type"] == "response.audio_transcript.delta":
-            if "delta" in response:
-                sys.stdout.write(response["delta"])
-                sys.stdout.flush()
+            sys.stdout.write(response["delta"])
+            sys.stdout.flush()
         if "type" in response and response["type"] == "response.audio_transcript.done":
-            if "transcript" in response:
-                # transcriptの中に最終のテキスト全体が入っている
-                # print(f"最終結果: {response['transcript']}")
-                print("\n✅ リアルタイム録音中... Ctrl+C で停止")
+            # transcriptの中に最終のテキスト全体が入っている
+            # print(f"最終結果: {response['transcript']}")
+            print("\n✅ リアルタイム録音中... Ctrl+C で停止")
     except json.JSONDecodeError:
         print("JSON decode error, message:", message)
 

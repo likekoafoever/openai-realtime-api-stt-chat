@@ -18,11 +18,11 @@ REALTIME_API_URL = (
 )
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
 
-# グローバル変数としてWebSocketを保持
+# 글로벌변수로해서 WebSocket
 global_ws: websocket.WebSocketApp | None = None
 
 SYSTEM_PROMPT = f"""
-あなたは日本語でのみ会話してください。
+당신은 한국어로 대화해 주세요.
 """
 
 
@@ -32,12 +32,12 @@ def audio_callback(
     time: Any,
     status: sd.CallbackFlags,
 ) -> None:
-    # 無音なら送信しない（必要に応じてしきい値を調整）
+    # 무음은 송신하지 않는다 
     amplitude = np.abs(indata).mean()
     if amplitude < 10:
         return
 
-    # 音声データをBase64エンコードし、サーバーに送信
+    # 음성데이터를 Base64인코드해서 서버로 송신
     audio_chunk = base64.b64encode(indata.tobytes()).decode("utf-8")
     if global_ws and global_ws.sock and global_ws.sock.connected:
         payload = json.dumps(
@@ -47,8 +47,8 @@ def audio_callback(
 
 
 def on_open(ws: websocket.WebSocket) -> None:
-    # WSを介してクライアントからサーバーへイベントをsession.updateのイベントを送信する
-    # サーバーのデフォルト設定からこちらの希望する設定に変更することが可能
+    # WS를 열어서 클라이언트로부터 서버로 session.update의 이벤트를 송신한다.
+    # 서버의 디폴트설정으로부터 희망하는 설정을 변경가능
     init_payload = json.dumps(
         {
             "type": "session.update",
@@ -64,26 +64,25 @@ def on_message(ws: websocket.WebSocket, message: str) -> None:
     try:
         response = json.loads(message)
         if "type" in response and response["type"] == "session.created":
-            # WSを介してセッションを開始した時にサーバー側で送信されるイベント
-            # デフォルトの設定等が入っている
-            print("✅ セッションが作成されました")
-            print(f"✅ セッション開始ログ: {response}")
+            # WS를 열어 세션을 개시하는 동안 서버측에 송신하는 이벤트 
+            print("✅ 세션이 시작되었습니다.")
+            print(f"✅ 세션 개시 로그 {response}")
         if "type" in response and response["type"] == "session.updated":
-            print("✅ セッションが更新されました")
-            print(f"✅ セッション更新ログ: {response}")
+            print("✅ 세션이 갱신되었습니다.")
+            print(f"✅ 세션 갱신 로그 {response}")
         if "type" in response and response["type"] == "response.audio_transcript.delta":
             sys.stdout.write(response["delta"])
             sys.stdout.flush()
         if "type" in response and response["type"] == "response.audio_transcript.done":
-            # transcriptの中に最終のテキスト全体が入っている
-            # print(f"最終結果: {response['transcript']}")
-            print("\n✅ リアルタイム録音中... Ctrl+C で停止")
+            # transcript의 중간에 최종 텍스트 전체를 입력
+            # print(f"최종결과: {response['transcript']}")
+            print("\n✅ 리얼타임 녹음 중... Ctrl+C 로 중지")
     except json.JSONDecodeError:
         print("JSON decode error, message:", message)
 
 
 def on_error(ws: websocket.WebSocket, error: str) -> None:
-    print(f"❌ WebSocket エラー: {error}")
+    print(f"❌ WebSocket 에러 : {error}")
 
 
 def run_ws() -> None:
@@ -101,11 +100,11 @@ def run_ws() -> None:
 
 
 async def main() -> None:
-    # WebSocketを別スレッドで実行
+    # WebSocket을 별도의 스레드로 실행
     ws_thread = threading.Thread(target=run_ws, daemon=True)
     ws_thread.start()
 
-    # マイクからの音声入力を開始
+    # 마이크로부터 음성입력을 개시
     with sd.InputStream(
         samplerate=16000,
         channels=1,
@@ -113,7 +112,7 @@ async def main() -> None:
         blocksize=1024,
         callback=audio_callback,
     ):
-        print("✅ リアルタイム録音中... Ctrl+C で停止")
+        print("✅ 리얼타임녹음중... Ctrl+C로 정지")
         while True:
             await asyncio.sleep(1)
 
